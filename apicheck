@@ -6,11 +6,7 @@
 usage() {
 	prog=$(basename "${0}")
 	echo "Usage:"
-	echo "${prog} <ebuild|jar> <ebuild|jar|pkg> <depends>"
-	echo "depends: in the format given to java-config"
-	echo ""
-	echo "For generation 2 ebuilds the depends are taken"
-	echo "automatically from package.env."
+	echo "${prog} <ebuild|jar> <ebuild|jar|pkg>"
 	echo ""
 	echo "For example:"
 	echo "apicheck foobar-1.0.ebuild foobar-1.1.ebuild"
@@ -27,14 +23,12 @@ debug() {
 	fi
 }
 
-if [[ $# -lt 2 ]]; then
+if [[ $# -ne 2 ]]; then
 	usage
 fi
 
 oldarg="${1}"
 newarg="${2}"
-
-depends="${3}"
 
 if [[ -d /usr/share/${newarg} ]]; then
 	pkg=true
