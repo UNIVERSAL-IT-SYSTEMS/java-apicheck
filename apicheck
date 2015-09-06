@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (C) 2006 Petteri Räty <betelgeuse@gentoo.org>
+# Copyright (C) 2006 Miroslav Šulc <fordfrog@gentoo.org>
+# Licensed under GPL v2 or later
 
 usage() {
 	prog=$(basename "${0}")
