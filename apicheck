@@ -67,7 +67,7 @@ generate_japi() {
 	file=${1}
 	shift
 	debug && echo japize as ${file} packages $(java-config -r | tr : " ") "${@}"
-	japize as ${file} packages $(java-config -r | tr : " ") "${@}" || end 1
+	japize as ${file} packages $(java-config -r | tr : " " | xargs ls -1 2>/dev/null) "${@}" || end 1
 }
 
 listpackages() {
