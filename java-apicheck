@@ -9,9 +9,9 @@ usage() {
 	echo "  ${prog} (ebuild|jar) (ebuild|jar|pkg)"
 	echo ""
 	echo "For example:"
-	echo "  apicheck foobar-1.0.ebuild foobar-1.1.ebuild"
-	echo "  apicheck foobar-1.0.ebuild foobar.1.0.jar"
-	echo "  apicheck bundledjar.jar gentoopackage"
+	echo "  ${prog} foobar-1.0.ebuild foobar-1.1.ebuild"
+	echo "  ${prog} foobar-1.0.ebuild foobar.1.0.jar"
+	echo "  ${prog} bundledjar.jar gentoopackage"
 	exit 1
 }
 
