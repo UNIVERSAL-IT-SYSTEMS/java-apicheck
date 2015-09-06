@@ -1,0 +1,145 @@
+#!/bin/bash
+
+usage() {
+	prog=$(basename "${0}")
+	echo "Usage:"
+	echo "${prog} <ebuild|jar> <ebuild|jar|pkg> <depends>"
+	echo "depends: in the format given to java-config"
+	echo ""
+	echo "For generation 2 ebuilds the depends are taken"
+	echo "automatically from package.env."
+	echo ""
+	echo "For example:"
+	echo "apicheck foobar-1.0.ebuild foobar-1.1.ebuild"
+	echo "apicheck foobar-1.0.ebuild foobar.1.0.jar"
+	echo "apicheck bundledjar.jar gentoopackage"
+	exit 1
+}
+
+debug() {
+	if [[ "${DEBUG}" ]]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+if [[ $# -lt 2 ]]; then
+	usage
+fi
+
+oldarg="${1}"
+newarg="${2}"
+
+depends="${3}"
+
+if [[ -d /usr/share/${newarg} ]]; then
+	pkg=true
+fi
+
+if ! [[ -e "${oldarg}" && ( -e "${newarg}" || ${pkg} ) ]]; then
+	usage
+fi
+
+TMP_DIR="$(mktemp -d /tmp/$(basename ${0})-XXXXXX || exit 1)"
+old="${TMP_DIR}/old.japi.gz"
+new="${TMP_DIR}/new.japi.gz"
+touch $old
+
+end() {
+	rm -v ${TMP_DIR}/*.japi.gz
+	rmdir -v ${TMP_DIR}
+	exit ${1}
+}
+
+getpkgtemp() {
+	echo "${portagetmp}/$(sed -e "s%.*[/]%%" <<< sed -e "s/\.ebuild$//" <<< ${1})/"
+}
+
+getjars() {
+	find "${1}/image" -name '*.jar' || end 1
+}
+
+generate_japi() {
+	file=${1}
+	shift
+	debug && echo japize as ${file} packages $(java-config -r | tr : " ") "${@}"
+	japize as ${file} packages $(java-config -r | tr : " ") "${@}" || end 1
+}
+
+listpackages() {
+	packages=""
+	for file in "${@}"; do
+		newpackages=`jar tf ${file} | grep .class | sed -e "s%[/][^/]*\.class$%%g" | sed -e "s%/%.%g" | sort | uniq | sed -e "s/^/\+/"`
+		if [[ ! -z "${newpackages}" ]]; then
+			if [[ -z "${packages}" ]]; then
+				packages=${newpackages}
+			else
+				packages="${packages} ${newpackages}"
+			fi
+		fi
+	done
+	packages=`echo ${packages} | sort | uniq`
+	sed -e "s/\n/ /g" <<< ${packages}
+}
+
+getdepjars() {
+	env=$(find ${1} -name "package.env")
+	grep 'GENERATION=1' ${env} > /dev/null || source ${env}
+
+	if [[ "${GENERATION}" = "2" && "${DEPEND}" ]]; then
+		# parsing DEPEND for java-config -p call
+		# after that removing colons
+		java-config --classpath=$(echo ${DEPEND} \
+			| sed -e 's/:/,/g' -e 's/^[^@]*@//' -re 's/(,)[^@]*@/\1/g') | \
+		sed -e "s/:/ /g"
+	fi
+}
+
+if [[ ${oldarg} = *ebuild ]]; then
+	oldebuild=${oldarg}
+	category=$(basename $(dirname $(dirname $(readlink -f ${oldebuild}))))
+	portagetmp="$(portageq envvar PORTAGE_TMPDIR || end 1)/portage/${category}/"
+
+	ebuild "${oldebuild}" install || end 1
+
+	pkgtmp="$(getpkgtemp ${oldebuild})"
+	[[ "${DEBUG}" ]] && echo ${pkgtmp}
+
+	oldjars="$(getjars ${pkgtmp})"
+else
+	oldjars="${oldarg}"
+fi
+
+tocheck="$(listpackages ${oldjars})"
+
+if [[ ${oldebuild} ]]; then
+	debug && getdepjars "${pkgtmp}/image"
+	generate_japi "${old}" ${oldjars} $(getdepjars "${pkgtmp}/image") ${tocheck}
+elif [[ ${pkg} ]]; then
+	generate_japi "${old}" ${oldjars} $(getdepjars "/usr/share/${newarg}") ${tocheck}
+else
+	generate_japi "${old}" ${oldjars} ${tocheck}
+fi
+
+if [[ ${newarg} = *ebuild ]]; then
+	newebuild="${newarg}"
+	ebuild "${newebuild}" install || end 1
+	pkgtmp="$(getpkgtemp ${newebuild})"
+	newjars="$(getjars ${pkgtmp})"
+	debug && echo $pkgtmp
+elif [[ ${pkg} ]]; then
+	newjars=$(java-config -dp ${newarg} | tr : " ")
+else
+	newjars="${newarg}"
+fi
+
+if [[ ${newebuild} ]]; then
+	generate_japi ${new} ${newjars} $(getdepjars "${pkgtmp}/image") ${tocheck}
+else
+	generate_japi ${new} ${newjars} ${tocheck}
+fi
+
+japicompat ${old} ${new}
+
+end $?
